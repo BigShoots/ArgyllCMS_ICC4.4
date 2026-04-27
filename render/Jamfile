@@ -13,6 +13,10 @@ Libraries = librender ;
 Executables = timage ;
 Headers = render.h ;
 
+if $(PGENERATOR_ARM_RUNTIME) {
+	Executables = ;
+}
+
 #Install
 InstallBin  $(DESTDIR)$(PREFIX)/bin : $(Executables) ;
 #InstallFile $(DESTDIR)$(PREFIX)/h : $(Headers) ;

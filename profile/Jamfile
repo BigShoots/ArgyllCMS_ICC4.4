@@ -17,6 +17,10 @@ if $(PGENERATOR_ARM_RUNTIME) {
 	Executables = colprof ;
 }
 
+if $(PGENERATOR_ARM_CCXXMAKE_ONLY) {
+	Executables = ;
+}
+
 if [ GLOB [ NormPaths . ] : mpp2prof.c ]  {
 	Executables += mpp2prof ;
 }

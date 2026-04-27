@@ -61,7 +61,11 @@ Headers = inst.h ;
 Samples = SOtele.sp linear.cal strange.cal ccxx.ti1 ;
 
 if $(PGENERATOR_ARM_RUNTIME) {
-	Executables = chartread spotread oeminst ;
+	Executables = chartread spotread ccxxmake oeminst ;
+}
+
+if $(PGENERATOR_ARM_CCXXMAKE_ONLY) {
+	Executables = ccxxmake ;
 }
 
 if ! $(PGENERATOR_ARM_RUNTIME) && [ GLOB [ NormPaths . ] : spec2cie.c ]  {
@@ -224,7 +228,11 @@ echo "HOME = " $(HOME) ;
 echo "PWD = " $(PWD) ;
 
 # CCMX and CCSStool
-Main ccxxmake : ccxxmake.c : : : : : libdisp ../render/librender ;
+if $(PGENERATOR_ARM_RUNTIME) {
+	Main ccxxmake : ccxxmake.c ;
+} else {
+	Main ccxxmake : ccxxmake.c : : : : : libdisp ../render/librender ;
+}
 
 # Gretag Spectroscan/T filmstrip reader
 #Main filmread : filmread.c : : : : : ;

@@ -13,7 +13,7 @@ PACKAGE_TARBALL="$DIST_DIR/$PACKAGE_NAME.tar.gz"
 PACKAGE_STAGE=$(mktemp -d "${TMPDIR:-/tmp}/argyllcms-armhf-package.XXXXXX")
 PACKAGE_ROOT="$PACKAGE_STAGE/$PACKAGE_NAME"
 
-REQUIRED_BINS=(spotread chartread colprof oeminst)
+REQUIRED_BINS=(spotread chartread colprof ccxxmake oeminst)
 
 cleanup() {
     rm -rf "$PACKAGE_STAGE"

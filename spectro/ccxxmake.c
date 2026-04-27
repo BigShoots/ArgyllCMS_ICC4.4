@@ -64,8 +64,9 @@
 #include "conv.h"
 #include "icoms.h"
 #include "inst.h"
-#include "ccast.h"
 #include "ui.h"
+#ifndef PGENERATOR_ARM_RUNTIME
+#include "ccast.h"
 #include "dispwin.h"
 #include "webwin.h"
 #include "dummywin.h"
@@ -73,6 +74,7 @@
 # include "madvrwin.h"
 #endif
 #include "dispsup.h"
+#endif
 #include "ccss.h"
 #include "ccmx.h"
 #include "instappsup.h"
@@ -108,7 +110,10 @@ void
 /* Flag & 0x0002 = list Technology choice */
 /* Flag & 0x1xxx = -S flag */
 usage(int flag, char *diag, ...) {
+
+#ifndef PGENERATOR_ARM_RUNTIME
 	disppath **dp;
+#endif
 	icompaths *icmps = new_icompaths(0);
 	inst2_capability cap = 0;
 
@@ -126,6 +131,7 @@ usage(int flag, char *diag, ...) {
 	fprintf(stderr," -v                Verbose mode\n");
 	fprintf(stderr," -S                Create CCSS rather than CCMX\n");
 	fprintf(stderr," -f ref.ti3[,targ.ti3]  Create from one or two .ti3 files rather than measure.\n");
+#ifndef PGENERATOR_ARM_RUNTIME
 #if defined(UNIX_X11)
 	fprintf(stderr," -display displayname   Choose X11 display name\n");
 	fprintf(stderr," -d n[,m]          Choose the display n from the following list (default 1)\n");
@@ -167,6 +173,7 @@ usage(int flag, char *diag, ...) {
 	fprintf(stderr," -d madvr          Display via MadVR Video Renderer\n");
 #endif
 	fprintf(stderr," -d dummy          Dummy (non-existant, invisible) display\n");
+#endif
 //	fprintf(stderr," -d fake           Use a fake (ICC profile) display device for testing, fake%s if present\n",ICC_FILE_EXT);
 	fprintf(stderr," -p                Use telephoto mode (ie. for a projector, if available)\n");
 	fprintf(stderr," -a                Use ambient measurement mode (ie. for a projector, if available)\n");
@@ -216,7 +223,6 @@ typedef double ary3[3];
 int main(int argc, char *argv[]) {
 	int i,j;
 	int fa, nfa, mfa;					/* current argument we're looking at */
-	disppath *disp = NULL;				/* Display being used */
 	double hpatscale = 1.0, vpatscale = 1.0;	/* scale factor for test patch size */
 	double ho = 0.0, vo = 0.0;			/* Test window offsets, -1.0 to 1.0 */
 	int fullscreen = 0;            		/* NZ if whole screen should be filled with black */
@@ -229,7 +235,11 @@ int main(int argc, char *argv[]) {
 	int spec = 0;						/* Need spectral data to implement option */
 	icxObserverType obType = icxOT_CIE_1931_2;
 	xspect custObserver[3];				/* If obType = icxOT_custom */
+
+#ifndef PGENERATOR_ARM_RUNTIME
+	disppath *disp = NULL;				/* Display being used */
 	int override = 1;					/* Override redirect on X11 */
+#endif
 	icompaths *icmps = NULL;			/* Ports to choose from */
 	int comno = COMPORT;				/* COM port used */
 	flow_control fc = fc_nc;			/* Default flow control */
@@ -244,6 +254,8 @@ int main(int argc, char *argv[]) {
 	int ambient = 0;					/* NZ if ambient mode */
 	int noinitcal = 0;					/* Disable initial calibration */
 	double icalmax = 1.0;				/* Scale inst. cal. test values by this (0.0 .. 1.0) */
+
+#ifndef PGENERATOR_ARM_RUNTIME
 	int webdisp = 0;					/* NZ for web display, == port number */
 	int ccdisp = 0;			 			/* NZ for ChromeCast, == list index */
 	ccast_id **ccids = NULL;
@@ -252,6 +264,7 @@ int main(int argc, char *argv[]) {
 	int madvrdisp = 0;					/* NZ for MadVR display */
 #endif
 	int dummydisp = 0;					/* NZ for dummy display */
+#endif
 	char *ccallout = NULL;				/* Change color Shell callout */
 	char *mcallout = NULL;				/* Measure color Shell callout */
 	int msteps = DEFAULT_MSTEPS;		/* Patch surface size */
@@ -264,7 +277,10 @@ int main(int argc, char *argv[]) {
 	int gotcol = 0;
 	char *colname = NULL;				/* Name of colorimeter instrument */
 	char *colfile = NULL;				/* Name of colorimeter file */
+
+#ifndef PGENERATOR_ARM_RUNTIME
 	col *rdcols = NULL;					/* Internal storage of all the patch colors */
+#endif
 	int saved = 0;						/* Saved result */
 	static char innames[2][MAXNAMEL+1] = { "\000", "\000" };  /* .ti3 input names */
 	static char outname[MAXNAMEL+5+1] = "\000";  /* ccmx output file name */
@@ -333,6 +349,9 @@ int main(int argc, char *argv[]) {
 
 			/* Display number */
 			} else if (argv[fa][1] == 'd') {
+			#ifdef PGENERATOR_ARM_RUNTIME
+				usage(uflag | 0,"-d is not available in the headless ARM runtime; use -f with .ti3 input files");
+			#else
 				if (strncmp(na,"web",3) == 0
 				 || strncmp(na,"WEB",3) == 0) {
 					webdisp = 8080;
@@ -408,7 +427,8 @@ int main(int argc, char *argv[]) {
 					}
 #endif
 				}
-#if defined(UNIX_X11)
+			#endif
+#if defined(UNIX_X11) && !defined(PGENERATOR_ARM_RUNTIME)
 			} else if (argv[fa][1] == 'n') {
 				override = 0;
 #endif /* UNIX */
@@ -1035,6 +1055,9 @@ int main(int argc, char *argv[]) {
 
 	/* Do interactive measurements */
 	} else {
+	#ifdef PGENERATOR_ARM_RUNTIME
+		error("The headless ARM runtime only supports file-based ccxxmake operation. Use -f ref.ti3[,targ.ti3].");
+	#else
 
 		/* No explicit display has been set */
 		if (
@@ -1543,6 +1566,8 @@ int main(int argc, char *argv[]) {
 		if (icmps != NULL)
 			icmps->del(icmps);
 		free_ccids(ccids);
+	}
+	#endif
 	}
 
 #ifdef DEBUG
