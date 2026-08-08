@@ -3057,6 +3057,14 @@ make_output_icc(
 				           wr_icco, icSigBToA2Tag,	icSigBToA0Tag)) == NULL) 
 					error("link_tag failed: %d, %s",wr_icco->e.c,wr_icco->e.m);
 			}
+		} else if (isdisp) {
+			/* A single-intent display B2A is built colorimetrically using the
+			 * profile's default intent.  Publish it under B2A1 as well as the
+			 * required B2A0 fallback so CMMs that request the media-relative
+			 * transform directly do not drop to matrix/TRC.  Do not do this in
+			 * the all-intents path, where B2A0 may be independently perceptual. */
+			if (wr_icco->link_tag(wr_icco, icSigBToA1Tag, icSigBToA0Tag) == NULL)
+				error("link_tag failed: %d, %s",wr_icco->e.c,wr_icco->e.m);
 		}
 
 		/* Set the ColorantTable PCS values */
