@@ -1566,8 +1566,8 @@ int main(int argc, char *argv[]) {
 		if (icmps != NULL)
 			icmps->del(icmps);
 		free_ccids(ccids);
-	}
 	#endif
+	}
 
 #ifdef DEBUG
 	/* Do a CCMX verification */
@@ -1622,7 +1622,6 @@ int main(int argc, char *argv[]) {
 
 	return 0;
 }
-
 
 
 
