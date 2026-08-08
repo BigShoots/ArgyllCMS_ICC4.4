@@ -1568,7 +1568,6 @@ int main(int argc, char *argv[]) {
 		free_ccids(ccids);
 	}
 	#endif
-	}
 
 #ifdef DEBUG
 	/* Do a CCMX verification */
@@ -1623,7 +1622,6 @@ int main(int argc, char *argv[]) {
 
 	return 0;
 }
-
 
 
 
