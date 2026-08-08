@@ -46,12 +46,15 @@ def main() -> None:
     parser.add_argument("--media-white-cdm2", type=float, required=True)
     parser.add_argument("--output", type=Path, required=True)
     parser.add_argument("--backend", type=Path)
+    parser.add_argument("--iccdev-dump", type=Path)
     parser.add_argument("--request-only", type=Path)
     parser.add_argument("--grid", type=int, default=33)
     args = parser.parse_args()
 
     if bool(args.backend) == bool(args.request_only):
         parser.error("select exactly one of --backend or --request-only")
+    if args.backend and not args.iccdev_dump:
+        parser.error("--backend requires --iccdev-dump")
     if args.media_white_cdm2 <= 0:
         parser.error("--media-white-cdm2 must be positive")
     if not 2 <= args.grid <= 65:
@@ -100,6 +103,13 @@ def main() -> None:
             check=True,
         )
     validate_iccmax(args.output)
+    subprocess.run(
+        [
+            str(args.iccdev_dump.resolve()), "-v", "--read", "1",
+            str(args.output.resolve()), "ALL",
+        ],
+        check=True,
+    )
 
 
 if __name__ == "__main__":

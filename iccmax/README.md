@@ -33,8 +33,12 @@ path and output ICC path:
 python3 iccmax/argyll-iccmax-export.py \
   --source-icc display.icc --ti3 display.ti3 \
   --media-white-cdm2 203 --output display-iccmax.icc \
-  --backend /path/to/argyll-iccdev-exporter
+  --backend /path/to/argyll-iccdev-exporter \
+  --iccdev-dump /path/to/iccDumpProfile
 ```
+
+Backend output is checked structurally and then passed through the ICC
+reference validator. A validator failure prevents the export from succeeding.
 
 The backend contract intentionally remains independent of `colprof -4`.
 Future iccMAX CLI integration should invoke this boundary as a distinct mode,
