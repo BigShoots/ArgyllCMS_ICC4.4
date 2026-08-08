@@ -212,7 +212,6 @@ main() {
         -sCROSS_TARGET="${TOOLCHAIN_PREFIX}"
         -sCROSS_SKIP_HOST_TOOLS=true
         -sPGENERATOR_ARM_RUNTIME=true
-        -sPGENERATOR_ARM_CCXXMAKE_ONLY="${PGENERATOR_ARM_CCXXMAKE_ONLY:-false}"
         -sUSE_PLOT=false
         -sBUILTIN_TIFF=true
         -sBUILTIN_JPEG=true
@@ -225,6 +224,13 @@ main() {
         -sAR="${TOOLCHAIN_PREFIX}-ar rusc"
         -sRANLIB="${TOOLCHAIN_PREFIX}-ranlib"
     )
+
+    # Jam treats any non-empty value, including the string "false", as true.
+    # Only define this selector when the caller explicitly requests the
+    # ccxxmake-only slice.
+    if [[ "${PGENERATOR_ARM_CCXXMAKE_ONLY:-false}" == "true" ]]; then
+        jam_args+=(-sPGENERATOR_ARM_CCXXMAKE_ONLY=true)
+    fi
 
     rm -rf "$BUILD_ROOT"
     mkdir -p "$BUILD_ROOT"
