@@ -78,6 +78,21 @@ def main() -> None:
         assert size == 12
         assert data[offset : offset + 12] == b"cicp\0\0\0\0\x09\x10\x00\x01"
         assert table["B2A0"] == table["B2A1"], "single-intent B2A1 is not aliased"
+
+        gamut_base = Path(directory) / "gamut"
+        gamut_base.with_suffix(".ti3").write_text(make_ti3(), encoding="ascii")
+        subprocess.run(
+            [
+                str(colprof), "-4", "-aX", "-ql", "-s", "20",
+                "-D", "ICC v4.4 perceptual smoke", str(gamut_base),
+            ],
+            check=True,
+        )
+        gamut_data = gamut_base.with_suffix(".icc").read_bytes()
+        gamut_tags = tags(gamut_data)
+        assert gamut_tags["B2A0"] != gamut_tags["B2A1"], (
+            "independently gamut-mapped perceptual B2A0 was incorrectly aliased"
+        )
         print("ICC v4.4 MLUC and CICP smoke test passed")
 
 
