@@ -19,24 +19,60 @@ def profile_header(path: Path):
     return data
 
 
+def profile_tags(data: bytes):
+    count = struct.unpack_from(">I", data, 128)[0]
+    table_end = 132 + 12 * count
+    if table_end > len(data):
+        raise ValueError("ICC tag table extends past the profile")
+
+    tags = {}
+    for index in range(count):
+        position = 132 + 12 * index
+        signature = data[position : position + 4]
+        offset, size = struct.unpack_from(">II", data, position + 4)
+        if size < 8 or offset < table_end or offset + size > len(data):
+            name = signature.decode("ascii", errors="replace")
+            raise ValueError(f"ICC tag {name} has an invalid data range")
+        tags[signature] = (offset, size)
+    return tags
+
+
 def validate_iccmax(path: Path) -> None:
     data = profile_header(path)
-    if data[8] != 5:
-        raise ValueError("iccMAX backend did not produce an ICC v5 profile")
+    if data[8:10] != b"\x05\x00":
+        raise ValueError("iccMAX backend did not produce an ICC v5.0 profile")
     if data[10:12] != b"\x02\x00":
         raise ValueError("iccMAX backend output is not extendedRange subclass version 2.0")
     if data[12:16] != b"mntr":
         raise ValueError("iccMAX backend output is not a display profile")
+    if data[16:20] != b"RGB " or data[20:24] != b"XYZ ":
+        raise ValueError("iccMAX backend output is not an RGB to XYZ profile")
     # ICC v5 uses bytes 100..119 for spectral PCS/ranges and MCS, followed
     # by the device subclass at bytes 120..123.
     if data[120:124] != b"xrng":
         raise ValueError("iccMAX backend output is not extendedRange subclass xrng")
-    count = struct.unpack_from(">I", data, 128)[0]
-    signatures = {data[132 + 12 * index : 136 + 12 * index] for index in range(count)}
+    tags = profile_tags(data)
     required = {b"desc", b"cprt", b"A2B1", b"B2A1", b"wtpt", b"c2sp", b"s2cp", b"svcn"}
-    missing = sorted(value.decode("ascii") for value in required - signatures)
+    missing = sorted(value.decode("ascii") for value in required - tags.keys())
     if missing:
         raise ValueError("iccMAX backend output is missing required tags: " + ", ".join(missing))
+
+    required_types = {
+        b"desc": b"mluc",
+        b"cprt": b"mluc",
+        b"A2B1": b"mpet",
+        b"B2A1": b"mpet",
+        b"wtpt": b"XYZ ",
+        b"c2sp": b"mpet",
+        b"s2cp": b"mpet",
+        b"svcn": b"svcn",
+    }
+    for signature, expected_type in required_types.items():
+        offset, _ = tags[signature]
+        if data[offset : offset + 4] != expected_type:
+            name = signature.decode("ascii")
+            type_name = expected_type.decode("ascii")
+            raise ValueError(f"iccMAX tag {name} is not {type_name} type")
 
 
 def main() -> None:
