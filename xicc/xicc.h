@@ -154,7 +154,8 @@ double scale		/* Amount to scale device values */
 
 /* A selector for profile creation type */
 typedef enum {
-	icxTCT_V2V2  = 0		/* V2 profile with V2 transforms */
+	icxTCT_V2V2  = 0,		/* V2 profile with V2 transforms */
+	icxTCT_V44_PQ = 1		/* V4.4 display profile, Rec.2020 PQ full-range CICP */
 } icxTransformCreateType;
 
 /* Black generation rule */
@@ -1000,7 +1001,6 @@ struct _icxCuspMap {
 #include "xcal.h"
 
 #endif /* XICC_H */
-
 
 
 

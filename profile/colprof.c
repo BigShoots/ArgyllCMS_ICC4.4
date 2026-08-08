@@ -135,6 +135,7 @@ void usage(char *diag, ...) {
 	fprintf(stderr," -u scale        If input profile, scale media white point by scale\n");
 	fprintf(stderr," -R              Restrict white <= 1.0, black and primaries to be +ve\n");
 	fprintf(stderr," -V demphasis    Degree of dark region cLUT grid emphasis 1.0-4.0 (default %.2f = none)\n",DEMPH_DEFAULT);
+	fprintf(stderr," -4              Create ICC v4.4 RGB display profile with CICP 9-16-0-1\n");
 	fprintf(stderr," -f [illum]      Use Fluorescent Whitening Agent compensation [opt. simulated inst. illum.:\n");
 	fprintf(stderr,"                  M0, M1, M2, A, C, D50 (def.), D50M2, D65, F5, F8, F10 or file.sp]\n");
 	fprintf(stderr," -i illum        Choose illuminant for computation of CIE XYZ from spectral data & FWA:\n");
@@ -314,6 +315,9 @@ int main(int argc, char *argv[]) {
 
 			else if (argv[fa][1] == 'v')
 				verb = 1;
+
+			else if (argv[fa][1] == '4')
+				icctype = icxTCT_V44_PQ;
 
 			/* Manufacturer description string */
 			else if (argv[fa][1] == 'A') {
@@ -1334,5 +1338,4 @@ int main(int argc, char *argv[]) {
 
 	return 0;
 }
-
 

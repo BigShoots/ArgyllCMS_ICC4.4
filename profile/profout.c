@@ -1224,6 +1224,11 @@ make_output_icc(
 		error("Write: Creation of ICC object failed (0x%x, '%s')",err.c,err.m);
 
 	/* Set the version of ICC profile we want */
+	if (icctype == icxTCT_V44_PQ) {
+		if (!isdisp || devspace != icSigRgbData)
+			error("ICC v4.4 PQ output is only valid for RGB display profiles");
+		iccver = ICMTV_44;
+	}
 	if (isdisp && allintents) {
 		if (iccver < ICMTV_24) {
 			iccver = ICMTV_24;		/* Need 2.4.0 for Display intents */
@@ -1281,6 +1286,17 @@ make_output_icc(
 			wh->attributes.l |= icNegative;
 		if (xpi != NULL && xpi->blackandwhite)
 			wh->attributes.l |= icBlackAndWhite;
+	}
+
+	if (icctype == icxTCT_V44_PQ) {
+		icmCicp *wo = (icmCicp *)wr_icco->add_tag(
+		    wr_icco, icSigCicpTag, icSigCicpType);
+		if (wo == NULL)
+			error("add CICP tag failed: %d, %s", wr_icco->e.c, wr_icco->e.m);
+		wo->colourPrimaries = 9;
+		wo->transferCharacteristics = 16;
+		wo->matrixCoefficients = 0;
+		wo->videoFullRangeFlag = 1;
 	}
 
 	/* mtxtoo only applies to Display cLUT profiles */
@@ -3358,4 +3374,3 @@ make_output_icc(
 
 	free(tpat);
 }
-
