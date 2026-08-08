@@ -1213,6 +1213,10 @@ static const char *icmTypeSig2str(icTagTypeSignature sig) {
 			return "Signature";
 		case icSigTextType:
 			return "Text";
+		case icSigMultiLocalizedUnicodeType:
+			return "Multi-localized Unicode";
+		case icSigCicpType:
+			return "CICP";
 		case icSigTextDescriptionType:
 			return "Text Description";
 		case icSigU16Fixed16ArrayType:
@@ -6447,6 +6451,77 @@ static icmBase *new_icmText(icc *icp, icTagTypeSignature ttype) {
 	return (icmBase *)p;
 }
 
+/* ---------------------------------------------------------- */
+/* Single-record multiLocalizedUnicodeType (en-US). */
+
+static void icmMultiLocalizedUnicode_serialise(icmMultiLocalizedUnicode *p, icmFBuf *b) {
+	unsigned int rcount = 1, rsize = 12;
+	/* The fixed single record starts immediately after the 16-byte type
+	 * header and its 12-byte record.  Set this before serialising the record,
+	 * since icmSn_Unicode() only discovers its write offset afterwards. */
+	if (b->op == icmSnSize || b->op == icmSnWrite)
+		p->utf16off = 28;
+	icmSn_TagTypeSig32(b, &p->ttype);
+	icmSn_pad(b, 4);
+	icmSn_ui_UInt32(b, &rcount);
+	icmSn_ui_UInt32(b, &rsize);
+	icmSn_us_UInt16(b, &p->language);
+	icmSn_us_UInt16(b, &p->country);
+	icmSn_ui_UInt32(b, &p->utf16count);
+	icmSn_ui_UInt32(b, &p->utf16off);
+	icmSn_Unicode(b, &p->_count, &p->count, (icmUTF8 **)&p->desc,
+	              &p->utf16off, &p->utf16count, "icmMultiLocalizedUnicode", 1);
+	ICMRDCHECKCONSUMED(icmMultiLocalizedUnicode)
+}
+
+static void icmMultiLocalizedUnicode_dump(icmMultiLocalizedUnicode *p, icmFile *op, int verb) {
+	if (verb > 0) {
+		op->printf(op, "MultiLocalizedUnicode (en-US):\n");
+		icmASCIIZ_dump(p->desc, p->count, op, verb, p->dp);
+	}
+}
+
+static int icmMultiLocalizedUnicode_check(icmMultiLocalizedUnicode *p,
+	                                       icTagSignature sig, int rd) {
+	return p->icp->e.c;
+}
+
+static icmBase *new_icmMultiLocalizedUnicode(icc *icp, icTagTypeSignature ttype) {
+	ICM_BASE_ALLOCINIT(icmMultiLocalizedUnicode, ttype)
+	p->language = icLanguageCodeEnglish;
+	p->country = icRegionCodeUSA;
+	return (icmBase *)p;
+}
+
+/* ---------------------------------------------------------- */
+/* cicpType */
+
+static void icmCicp_serialise(icmCicp *p, icmFBuf *b) {
+	icmSn_TagTypeSig32(b, &p->ttype);
+	icmSn_pad(b, 4);
+	icmSn_ui_UInt8(b, &p->colourPrimaries);
+	icmSn_ui_UInt8(b, &p->transferCharacteristics);
+	icmSn_ui_UInt8(b, &p->matrixCoefficients);
+	icmSn_ui_UInt8(b, &p->videoFullRangeFlag);
+	ICMRDCHECKCONSUMED(icmCicp)
+}
+
+static void icmCicp_dump(icmCicp *p, icmFile *op, int verb) {
+	if (verb > 0)
+		op->printf(op, "CICP: %u-%u-%u-%u\n", p->colourPrimaries,
+		           p->transferCharacteristics, p->matrixCoefficients,
+		           p->videoFullRangeFlag);
+}
+
+static int icmCicp_check(icmCicp *p, icTagSignature sig, int rd) {
+	return p->icp->e.c;
+}
+
+static icmBase *new_icmCicp(icc *icp, icTagTypeSignature ttype) {
+	ICM_BASE_ALLOCINIT(icmCicp, ttype)
+	return (icmBase *)p;
+}
+
 
 /* ============================================================ */
 
@@ -8384,6 +8459,8 @@ static icmTagTypeVersConstrRec icmTagTypeTable[] = {
 	{icSigSignatureType,			ICMTVRANGE_20_PLUS,			new_icmSignature},
 	{icSigTextType,					ICMTVRANGE_20_PLUS,			new_icmText},
 	{icSigTextDescriptionType,		{ICMTV_20, ICMTV_24},		new_icmTextDescription},
+	{icSigMultiLocalizedUnicodeType, ICMTVRANGE_40_PLUS,			new_icmMultiLocalizedUnicode},
+	{icSigCicpType,					ICMTVRANGE_44_PLUS,			new_icmCicp},
 	{icSigU16Fixed16ArrayType,		ICMTVRANGE_20_PLUS,			new_icmU16Fixed16Array},
 	{icSigUcrBgType,				{ICMTV_20, ICMTV_40},		new_icmUcrBg},
 	{icSigUInt16ArrayType,			ICMTVRANGE_20_PLUS,			new_icmUInt16Array},
@@ -8451,6 +8528,9 @@ static icmTagSigVersTypesRec icmTagSigTable[] = {
 	{icSigChromaticityTag,			ICMTVRANGE_23_PLUS, icmTPNone,
 											{{ icSigChromaticityType,		ICMTVRANGE_ALL },
 											 { icMaxEnumTagType}}},
+	{icSigCicpTag,					ICMTVRANGE_44_PLUS, icmTPNone,
+											{{ icSigCicpType,				ICMTVRANGE_ALL },
+											 { icMaxEnumTagType}}},
 	{icSigColorantTableTag,         ICMTVRANGE_40_PLUS,	icmTPNone,
 											{{ icSigColorantTableType,		ICMTVRANGE_ALL },
 											 { icmSigAltColorantTableType,	ICMTVRANGE_ALL },
@@ -8461,6 +8541,7 @@ static icmTagSigVersTypesRec icmTagSigTable[] = {
 											 { icMaxEnumTagType}}},
 	{icSigCopyrightTag,				ICMTVRANGE_20_PLUS, icmTPNone,
 											{{ icSigTextType,			{ ICMTV_20, ICMTV_24 }},
+											 { icSigMultiLocalizedUnicodeType, ICMTVRANGE_40_PLUS },
 											 { icMaxEnumTagType}}},
 	{icSigCrdInfoTag,				{ ICMTV_21, ICMTV_40 },	icmTPNone,
 											{{ icSigCrdInfoType,			ICMTVRANGE_ALL },		
@@ -8475,9 +8556,11 @@ static icmTagSigVersTypesRec icmTagSigTable[] = {
 #endif
 	{icSigDeviceMfgDescTag,			ICMTVRANGE_20_PLUS, icmTPNone,
 											{{ icSigTextDescriptionType,	{ ICMTV_20, ICMTV_24 }},
+											 { icSigMultiLocalizedUnicodeType, ICMTVRANGE_40_PLUS },
 											 { icMaxEnumTagType}}},
 	{icSigDeviceModelDescTag,		ICMTVRANGE_20_PLUS, icmTPNone,
 											{{ icSigTextDescriptionType,	{ ICMTV_20, ICMTV_24 }},
+											 { icSigMultiLocalizedUnicodeType, ICMTVRANGE_40_PLUS },
 											 { icMaxEnumTagType}}},
 	{icSigDeviceSettingsTag,		{ ICMTV_22, ICMTV_40 },	icmTPNone,
 											{{ icSigDeviceSettingsType,			ICMTVRANGE_ALL },
@@ -8529,7 +8612,8 @@ static icmTagSigVersTypesRec icmTagSigTable[] = {
 											 { icSigLut8Type,			ICMTVRANGE_ALL },
 											 { icMaxEnumTagType}}},
 	{icSigProfileDescriptionTag,		ICMTVRANGE_20_PLUS, icmTPNone,
-											{{ icSigTextDescriptionType,		ICMTVRANGE_ALL },
+											{{ icSigTextDescriptionType,		{ ICMTV_20, ICMTV_24 } },
+											 { icSigMultiLocalizedUnicodeType, ICMTVRANGE_40_PLUS },
 											 { icMaxEnumTagType}}},
 	{icSigProfileSequenceDescTag,		ICMTVRANGE_20_PLUS, icmTPNone,
 											{{ icSigProfileSequenceDescType,	ICMTVRANGE_ALL },
@@ -8573,8 +8657,9 @@ static icmTagSigVersTypesRec icmTagSigTable[] = {
 	{icSigVideoCardGammaTag,	ICMTVRANGE_20_PLUS,	icmTPNone,
 											{{ icSigVideoCardGammaType,		ICMTVRANGE_ALL },
 											 { icMaxEnumTagType }}},
-	{icSigViewingCondDescTag,		{ ICMTV_20, ICMTV_40 }, icmTPNone,
-											{{ icSigTextDescriptionType,	ICMTVRANGE_ALL },
+	{icSigViewingCondDescTag,		ICMTVRANGE_20_PLUS, icmTPNone,
+											{{ icSigTextDescriptionType,	{ ICMTV_20, ICMTV_24 } },
+											 { icSigMultiLocalizedUnicodeType, ICMTVRANGE_40_PLUS },
 											 { icMaxEnumTagType }}},
 	{icSigViewingConditionsTag,	ICMTVRANGE_20_PLUS,	icmTPNone,
 											{{ icSigViewingConditionsType,	ICMTVRANGE_ALL },
@@ -9174,6 +9259,11 @@ static int icc_set_version(icc *p, icmTV ver) {
 		case ICMTV_22:
 		case ICMTV_23:
 		case ICMTV_24:
+		case ICMTV_40:
+		case ICMTV_41:
+		case ICMTV_42:
+		case ICMTV_43:
+		case ICMTV_44:
 		    p->header->vers.majv = ver/10000;
 			p->header->vers.minv = (ver/100) % 100;
 			p->header->vers.bfv  = ver % 100;
@@ -10229,6 +10319,8 @@ static int icc_translate_pseudotype(
 	unsigned int i, j;
 
 	if (ttype == icmSigCommonTextDescriptionType) {
+		if (ICMVERS2TV(p->header->vers) >= ICMTV_40)
+			return icSigMultiLocalizedUnicodeType;
 
 
 		if (sig != icmSigUnknown) {
@@ -12178,5 +12270,3 @@ static int icc_get_wb_points(
 /* Utility function declarations are in their own file */
 
 #include "icc_util.c"
-
-

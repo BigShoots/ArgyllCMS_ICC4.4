@@ -1551,6 +1551,24 @@ struct _icmText {
 
 }; typedef struct _icmText icmText;
 
+/* Minimal single-record multiLocalizedUnicodeType used by profile creation. */
+struct _icmMultiLocalizedUnicode {
+	ICM_CMTD_MEMBERS(struct _icmMultiLocalizedUnicode)
+	unsigned short language;
+	unsigned short country;
+	unsigned int utf16off;
+	unsigned int utf16count;
+}; typedef struct _icmMultiLocalizedUnicode icmMultiLocalizedUnicode;
+
+/* Coding-independent code points. */
+struct _icmCicp {
+	ICM_BASE_MEMBERS(struct _icmCicp)
+	unsigned int colourPrimaries;
+	unsigned int transferCharacteristics;
+	unsigned int matrixCoefficients;
+	unsigned int videoFullRangeFlag;
+}; typedef struct _icmCicp icmCicp;
+
 
 /* - - - - - - - - - - - - - - - - - - - - -  */
 /* DateTime */
@@ -2685,5 +2703,4 @@ extern ICCLIB_API icc *new_icc(icmErr *e);				/* Default allocator */
 #endif
 
 #endif /* ICC_H */
-
 
