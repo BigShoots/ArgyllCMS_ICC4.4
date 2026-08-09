@@ -80,9 +80,10 @@ KWin 6.7.4 does not consume CICP metadata by itself. The matching
 Rec. 2020 PQ profile encoding. On unpatched KWin, adding CICP alone does not
 change the hard-coded gamma 2.2 HDR profile path.
 
-For the patched KDE cLUT path, omit VCGT unless its effect has already been
-removed from the cLUT. Applying both independently can double the neutral
-correction.
+For the patched KDE cLUT path, VCGT is optional. If it is included, build the
+B2A transform from measurements with the VCGT effect removed so that KWin's
+sequential B2A and VCGT stages reproduce the intended correction once. If the
+B2A transform already contains the full neutral correction, omit VCGT.
 
 ## iccMAX status
 
