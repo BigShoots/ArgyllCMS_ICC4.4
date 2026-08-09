@@ -15,6 +15,12 @@ Build ArgyllCMS using its normal Jam build:
 jam -q -fJambase -j 8
 ```
 
+On Fedora, the full native build needs `jam`, the normal C/C++ toolchain,
+`libXxf86vm-devel`, `libGLU-devel`, `freeglut-devel`,
+`libXScrnSaver-devel` and `libXdmcp-devel`. If a worktree previously held
+cross-compiled objects, use `jam -a -q -fJambase -j 8` to force every object
+to be rebuilt for the host architecture.
+
 Create an XYZ cLUT plus matrix display profile:
 
 ```sh
@@ -62,6 +68,9 @@ The smoke test checks:
 - exact CICP bytes `9/16/0/1`
 - B2A0 and B2A1 aliasing for a single-intent profile
 - separation of B2A0 and B2A1 when a perceptual gamut map is requested
+
+The current branch has passed this test with a native x86-64 build and with
+the synchronized armhf build running on the target Raspberry Pi userland.
 
 For independent format validation, use the ICC reference implementation:
 

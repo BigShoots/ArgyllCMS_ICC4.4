@@ -13,7 +13,7 @@ Create an RGB display profile carrying Rec. 2020 PQ full-range coding
 metadata:
 
 ```sh
-profile/colprof -4 -a X -q m display
+profile/colprof -4 -aX -qm display
 ```
 
 The `-4` option is deliberately narrow. It is accepted only for RGB display
@@ -48,6 +48,8 @@ python3 contrib/test_icc44.py --colprof profile/colprof
 
 The test covers the v4.4 header, MLUC tags, exact CICP bytes, single-intent
 B2A aliasing and preservation of an independently gamut-mapped B2A0.
+It has been run successfully with the native x86-64 executable and with the
+synchronized armhf executable on the target Raspberry Pi userland.
 
 For stricter interoperability testing, validate the generated profile with
 the ICC reference `iccDumpProfile` tool:
