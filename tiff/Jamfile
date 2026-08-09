@@ -16,7 +16,7 @@ if $(UNIX) {
 	}
 	# Genfile actually creates libtiff/tif_config.h and libtiff/tiffconf.h:
 	GenFileNND libtiff/tif_config.h :
-	          "(cd $(SUBDIR); chmod +x configure ; $(CROSS_ENV) ./configure $(CROSS_HOST) --disable-old-jpeg --disable-pixarlog --disable-zlib --disable-jbig)" : configure ;
+	          "(cd $(SUBDIR); chmod +x configure ; $(CROSS_ENV) ./configure $(CROSS_HOST) --disable-old-jpeg --disable-pixarlog --disable-zlib --disable-jbig --disable-lzma)" : configure ;
 	# Workaround Jam problem of two products from one action:
 	FakeFile libtiff/tiffconf.h : libtiff/tif_config.h ;
 }
@@ -86,4 +86,3 @@ NIncludes tiffio.h : tiff.h tiffvers.h ;
 
 # Compile some of the tools
 SubInclude tools ;
-
