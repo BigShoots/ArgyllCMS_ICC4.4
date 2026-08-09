@@ -99,8 +99,8 @@ serializer. iccMAX export is therefore staged development work, not a finished
 ## ARM builds
 
 The repository retains the ARM cross-build work used by PGenerator+. The
-native ICC v4.4 changes and the ARM fork must remain synchronized so `colprof
--4` produces the same profile structure on both architectures.
+native ICC v4.4 changes and the ARM fork must remain synchronized so
+`colprof -4` produces the same profile structure on both architectures.
 
 The ARM helper builds a headless runtime containing `spotread`, `chartread`,
 `colprof`, `ccxxmake` and `oeminst`. See the scripts under `tools/` for the
