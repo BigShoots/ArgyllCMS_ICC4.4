@@ -36,6 +36,10 @@ The CICP tag declares how the HDR profile data is encoded. It does not make
 SDR measurements into HDR measurements and does not replace the measured
 display primaries or the fitted transform.
 
+For compositors that apply both B2A and VCGT, include VCGT only when its
+effect was removed from the measurements used to fit B2A. If B2A contains the
+complete neutral correction, omit VCGT to avoid applying it twice.
+
 Run the smoke test after building:
 
 ```sh
