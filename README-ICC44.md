@@ -40,6 +40,19 @@ For compositors that apply both B2A and VCGT, include VCGT only when its
 effect was removed from the measurements used to fit B2A. If B2A contains the
 complete neutral correction, omit VCGT to avoid applying it twice.
 
+Three calibration workflows are valid and should remain distinct:
+
+* Use VCGT when the profile consumer loads video-card calibration curves.
+* Use `applycal` when calibration is required but VCGT is not loaded. Build
+  the profile in the calibrated device domain first, then incorporate the CAL
+  curves into the ICC transform with `applycal`.
+* Apply no calibration when profiling a TV or display already calibrated
+  internally. The ICC then characterizes the display in that finished state.
+
+For display output, `applycal` composes the forward calibration after the B2A
+transform. In the reverse A2B direction it composes the inverse calibration
+before characterization. It does not create or modify a VCGT tag.
+
 Run the smoke test after building:
 
 ```sh
