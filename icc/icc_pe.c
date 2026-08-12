@@ -1157,9 +1157,9 @@ static int icmLut1_check(icmLut1 *p, icTagSignature sig, int rd) {
 			icmFormatWarning(icp, ICM_FMT_LU8IOENT,
 		                 "icmLut8 1D input or output tables don't have 256 entries");
 		}
-	} else if (p->inputEnt > 4096 || p->outputEnt > 4096) {
+	} else if (p->outputEnt > 4096) {
 		icmFormatWarning(icp, ICM_FMT_LUIOENT,
-		                 "icmLut8 1D input or output have no. entries > 4096");
+		                 "icmLut16 1D output has more than 4096 entries");
 	}
 
 	/* Check all sub-icmPe's */
@@ -2753,4 +2753,3 @@ static icmPeContainer *new_icmPeContainer(
 
 	return p;
 }
-

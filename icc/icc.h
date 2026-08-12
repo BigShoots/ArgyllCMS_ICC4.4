@@ -378,7 +378,7 @@ void icm_err_clear_e(icmErr *e);
 #define ICM_FMT_LUOCHAN   	            0x38	/* Lut output channels don't match colorspace */
 #define ICM_FMT_LUPURP 		  	        0x39	/* Lut unknown lut purpose */
 #define ICM_FMT_LU8IOENT   	            0x3a	/* Lut8 input or output table entries not 256*/
-#define ICM_FMT_LUIOENT   	            0x3b	/* Lut input or output table entries > 4096 */
+#define ICM_FMT_LUIOENT   	            0x3b	/* Lut output table entries > 4096 */
 
 #define ICM_FMT_DATA_FLAG  	            0x40	/* Data type has unknown flag value */
 #define ICM_FMT_DATA_TERM  	            0x41	/* ASCII data is not null terminated */
