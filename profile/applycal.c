@@ -27,7 +27,6 @@
 #include <fcntl.h>
 #include <string.h>
 #include <time.h>
-#include <math.h>
 #include "copyright.h"
 #include "aconfig.h"
 #include "cgats.h"
@@ -64,7 +63,6 @@ void usage(char *diag, ...) {
 	fprintf(stderr,"usage: %s [-options] [calfile.cal] inprof%s [outprof%s]\n","applycal",ICC_FILE_EXT,ICC_FILE_EXT);
 	fprintf(stderr," -v              Verbose mode\n");
 	fprintf(stderr," -a              Apply or re-apply calibration (default)\n");
-	fprintf(stderr," -d              Add device-domain correction to B2A output shapers\n");
 	fprintf(stderr," -u              Remove calibration\n");
 	fprintf(stderr," -c              Check calibration\n");
 	fprintf(stderr," calfile.cal     Calibration file to apply\n");
@@ -94,7 +92,6 @@ main(int argc, char *argv[]) {
 	int apply = 1;
 	int remove = 0;
 	int check = 0;
-	int delta = 0;
 	int verb = 0;
 	int found = -1;
 	int rv;
@@ -128,28 +125,18 @@ main(int argc, char *argv[]) {
 
 			else if (argv[fa][1] == 'a' || argv[fa][1] == 'A') {
 				apply = 1;
-				delta = 0;
-				remove = 0;
-				check = 0;
-			}
-
-			else if (argv[fa][1] == 'd' || argv[fa][1] == 'D') {
-				apply = 1;
-				delta = 1;
 				remove = 0;
 				check = 0;
 			}
 
 			else if (argv[fa][1] == 'u' || argv[fa][1] == 'U') {
 				apply = 0;
-				delta = 0;
 				remove = 1;
 				check = 0;
 			}
 
 			else if (argv[fa][1] == 'c' || argv[fa][1] == 'C') {
 				apply = 0;
-				delta = 0;
 				remove = 0;
 				check = 1;
 			}
@@ -237,65 +224,7 @@ main(int argc, char *argv[]) {
 		}
 
 
-		if (delta) {
-			icTagSignature dsigs[] = {
-				icSigBToA0Tag, icSigBToA1Tag, icSigBToA2Tag, 0
-			};
-			icmBase *done[3] = { NULL, NULL, NULL };
-			unsigned int dn = 0, si;
-
-			if (icco->header->deviceClass != icSigDisplayClass)
-				error("B2A output correction is only valid for display profiles");
-			if (cal->colspace != icco->header->colorSpace)
-				error("Correction space %s doesn't match profile %s",
-				      icm2str(icmColorSpaceSig, cal->colspace),
-				      icm2str(icmColorSpaceSig, icco->header->colorSpace));
-
-			for (si = 0; dsigs[si] != 0; si++) {
-				icmBase *tag = icco->read_tag(icco, dsigs[si]);
-				icmLut *lut;
-				unsigned int di, ch;
-
-				if (tag == NULL)
-					continue;
-				for (di = 0; di < dn && done[di] != tag; di++)
-					;
-				if (di < dn)
-					continue;
-				if (tag->ttype != icSigLut16Type)
-					error("B2A output correction requires Lut16 B2A tags");
-				lut = (icmLut *)tag;
-				if (lut->outputChan != 3 || lut->outputEnt < 2)
-					error("B2A output correction requires three usable output shapers");
-
-				for (ch = 0; ch < lut->outputChan; ch++) {
-					double previous = 0.0;
-					for (i = 0; i < lut->outputEnt; i++) {
-						double position = i / (lut->outputEnt - 1.0);
-						double value = lut->pe_oc[ch]->data[i]
-						             + cal->interp_ch(cal, ch, position);
-						if (value < 0.0)
-							value = 0.0;
-						else if (value > 1.0)
-							value = 1.0;
-						/* Match Lut16 quantization before enforcing monotonicity.
-						 * This makes the saved curve deterministic and prevents a
-						 * sub-code reversal from reappearing during serialization. */
-						value = floor(value * 65535.0 + 0.5) / 65535.0;
-						if (value < previous)
-							value = previous;
-						lut->pe_oc[ch]->data[i] = previous = value;
-					}
-				}
-				done[dn++] = tag;
-			}
-			if (dn == 0)
-				error("B2A output correction found no B2A transform");
-			if (verb)
-				printf("Added device-domain correction to %u B2A transform%s\n",
-				       dn, dn == 1 ? "" : "s");
-
-		} else if (check) {
+		if (check) {
 			DBG(("Checking...\n"));
 
 			for (sigp = linksigs; sigp->prim != 0; sigp++) {
@@ -772,3 +701,6 @@ main(int argc, char *argv[]) {
 		return 1;
 	return 0;
 }
+
+
+

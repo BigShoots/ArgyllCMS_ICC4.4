@@ -20,8 +20,6 @@ Verbose
         &nbsp;<a href="#a">-a</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 Apply
         or re-apply calibration (default)<br>
-        &nbsp;<a href="#d">-d</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
-Add a device-domain correction to B2A output shapers<br>
         &nbsp;<a href="#u">-u</a>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
 Remove
         calibration<br>
@@ -49,18 +47,6 @@ Check
     or
     re-applied to the <span style="font-weight: bold;">inprof.icm</span>,
     and then written to <span style="font-weight: bold;">outprof.icm</span>.<br>
-    <br>
-    <span style="font-weight: bold;"><a name="d"></a>-d</span> treats
-    <span style="font-weight: bold;">calfile.cal</span> as a signed additive
-    device-domain correction. Each RGB value is added to the corresponding
-    Lut16 B2A output shaper at the input position in the first column. Values
-    are normalized device values, so 1/1023 represents one code in a 10-bit
-    workflow. The result is clipped to the ICC range and made monotonic after
-    16-bit quantization. This mode does not alter A2B tables, cLUT data, input
-    shapers, profile tags or vcgt. It is intended for measured correction
-    data from the complete live color-management path, where a normal device
-    calibration curve would incorrectly repeat calibration already present in
-    the profile.<br>
     <br>
     <span style="font-weight: bold;"><a name="u"></a>-u</span> This flag
     causes any calibration applied to the <span style="font-weight:
