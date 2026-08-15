@@ -199,6 +199,7 @@ typedef struct {
 
     gamut *gam;				/* Output gamut object for setting gamut Lut */
 	int wantLab;			/* 0 if is XYZ PCS, 1 if is Lab PCS */
+	void *par;				/* Parallel B2A fill context (b2a_par_cx), NULL if none */
 } out_callback_cx;
 
 /* Utility to handle abstract profile application to PCS. */
@@ -682,6 +683,213 @@ void out_b2a_output(void *cntx, double out[4], double in[4], int tn) {
 
 	DBG(("out_b2a_output returning DEV %s\n",icmPdv(p->ochan,out)))
 }
+
+/* --------------------------------------------------------- */
+/* Parallel B2A cLUT fill support (Unix fork() based).       */
+/* The grid fill is run in three phases: a cheap "record"    */
+/* pass through create_lut_xforms() that captures the exact  */
+/* input values and sequence the fill would use, a parallel  */
+/* compute phase using forked workers that inherit the       */
+/* fully initialized reverse-lookup state by copy-on-write   */
+/* and write results to a shared mapping, and a cheap        */
+/* "replay" pass that feeds the precomputed results back     */
+/* to create_lut_xforms() in the original order. Each grid   */
+/* point is computed by exactly the same code and state as   */
+/* the serial path, so the result is bit-identical.          */
+
+#if !defined(NT) && !defined(_WIN32)
+# define B2A_PAR
+#endif
+
+#ifdef B2A_PAR
+
+#include <unistd.h>
+#include <sys/mman.h>
+#include <sys/wait.h>
+
+typedef struct {
+	out_callback_cx *cx;	/* Underlying real callback context */
+	int ichan, ochan;		/* PCS/device channels */
+	unsigned int npts;		/* Number of recorded grid points */
+	unsigned int apts;		/* Allocated points */
+	double *inv;			/* npts x ichan recorded clutfunc input values */
+	int *tnv;				/* npts recorded (raw) table numbers */
+	double *outv;			/* npts x ochan results (shared mapping) */
+	volatile unsigned int *prog;	/* Shared progress counter */
+	unsigned int rix;		/* Replay index */
+} b2a_par_cx;
+
+/* Pass 1: record the input values create_lut_xforms() will use */
+static void out_b2a_clut_record(void *cntx, double *out, double in[3], int itn) {
+	b2a_par_cx *m = (b2a_par_cx *)((out_callback_cx *)cntx)->par;
+	int e, f;
+
+	if (m->npts >= m->apts) {		/* Grow record buffers */
+		m->apts = m->apts == 0 ? 65536 : 2 * m->apts;
+		if ((m->inv = realloc(m->inv, (size_t)m->apts * m->ichan * sizeof(double))) == NULL
+		 || (m->tnv = realloc(m->tnv, (size_t)m->apts * sizeof(int))) == NULL)
+			error("Malloc of B2A record buffers failed");
+	}
+	for (e = 0; e < m->ichan; e++)
+		m->inv[(size_t)m->npts * m->ichan + e] = in[e];
+	m->tnv[m->npts] = itn;
+	m->npts++;
+
+	for (f = 0; f < m->ochan; f++)	/* Benign in-range dummy output */
+		out[f] = 0.5;
+}
+
+/* Pass 2: replay the computed results in recorded order */
+static void out_b2a_clut_replay(void *cntx, double *out, double in[3], int itn) {
+	b2a_par_cx *m = (b2a_par_cx *)((out_callback_cx *)cntx)->par;
+	unsigned int i = m->rix++;
+	int f;
+
+	if (i >= m->npts
+	 || m->tnv[i] != itn
+	 || memcmp(in, m->inv + (size_t)i * m->ichan, m->ichan * sizeof(double)) != 0)
+		error("Parallel B2A replay diverged from record at point %u",i);
+
+	for (f = 0; f < m->ochan; f++)
+		out[f] = m->outv[(size_t)i * m->ochan + f];
+}
+
+/* Number of workers to use. <= 1 means use the normal serial path. */
+static int b2a_par_workers(void) {
+	char *ev;
+	long ncpu;
+
+	if ((ev = getenv("ARGYLL_B2A_WORKERS")) != NULL)
+		return atoi(ev);
+	ncpu = sysconf(_SC_NPROCESSORS_ONLN);
+	if (ncpu > 16)
+		ncpu = 16;
+	return (int)ncpu;
+}
+
+/* Compute all recorded points with forked workers. Return nz on failure. */
+static int b2a_par_compute(b2a_par_cx *m, int nworkers, int verb) {
+	unsigned int i;
+	int k, e, failed = 0;
+	pid_t *pids;
+	size_t shsz;
+
+	if ((unsigned int)nworkers > m->npts)
+		nworkers = m->npts;
+
+	/* Warm up the reverse-lookup machinery in this process (rev[]/nnrev[] */
+	/* array setup and CAM clip rspl creation are lazy, triggered by the   */
+	/* first lookups), so workers inherit it via copy-on-write: look up    */
+	/* the corners of the recorded input range - the corners are certain   */
+	/* to exercise the clip (nnrev + CAM clip) path.                       */
+	{
+		double tmin[3], tmax[3], iv[3], ov[MAX_CHAN];
+
+		for (e = 0; e < m->ichan; e++)
+			tmin[e] = 1e300, tmax[e] = -1e300;
+		for (i = 0; i < m->npts; i++) {
+			for (e = 0; e < m->ichan; e++) {
+				double v = m->inv[(size_t)i * m->ichan + e];
+				if (v < tmin[e])
+					tmin[e] = v;
+				if (v > tmax[e])
+					tmax[e] = v;
+			}
+		}
+		for (k = 0; k < (1 << m->ichan); k++) {
+			for (e = 0; e < m->ichan; e++)
+				iv[e] = (k & (1 << e)) ? tmax[e] : tmin[e];
+			out_b2a_clut((void *)m->cx, ov, iv, 0);
+		}
+	}
+
+	/* Results + progress counter in a shared anonymous mapping */
+	shsz = (size_t)m->npts * m->ochan * sizeof(double) + sizeof(unsigned int);
+	if ((m->outv = mmap(NULL, shsz, PROT_READ | PROT_WRITE,
+	                    MAP_SHARED | MAP_ANONYMOUS, -1, 0)) == MAP_FAILED) {
+		m->outv = NULL;
+		return 1;
+	}
+	m->prog = (volatile unsigned int *)(m->outv + (size_t)m->npts * m->ochan);
+	*m->prog = 0;
+
+	if ((pids = calloc(nworkers, sizeof(pid_t))) == NULL)
+		return 1;
+
+	for (k = 0; k < nworkers; k++) {
+		unsigned int lo = (unsigned int)((double)k * m->npts/nworkers + 0.5);
+		unsigned int hi = (unsigned int)((double)(k+1) * m->npts/nworkers + 0.5);
+
+		if ((pids[k] = fork()) == 0) {
+			/* Worker: compute our contiguous slice of the pseudo-hilbert */
+			/* sequence (contiguous => spatially local => cache friendly) */
+			double out[MAX_CHAN];
+
+			m->cx->verb = 0;		/* Copy-on-write, private to worker */
+			for (i = lo; i < hi; i++) {
+				out_b2a_clut((void *)m->cx, out, m->inv + (size_t)i * m->ichan, m->tnv[i]);
+				for (e = 0; e < m->ochan; e++)
+					m->outv[(size_t)i * m->ochan + e] = out[e];
+				(void)__sync_add_and_fetch(m->prog, 1);
+			}
+			_exit(0);
+		} else if (pids[k] < 0) {
+			failed = 1;
+			nworkers = k;		/* Reap the ones we started */
+			break;
+		}
+	}
+
+	/* Parent: show progress and reap the workers */
+	{
+		int last = -1, nalive = nworkers;
+
+		while (nalive > 0) {
+			int status = 0;
+			pid_t r;
+
+			if (verb) {
+				int pc = (int)(*m->prog * 100.0/m->npts + 0.5);
+				if (pc != last) {
+					printf("%c%2d%%",cr_char,pc); fflush(stdout);
+					last = pc;
+				}
+			}
+			if ((r = waitpid(-1, &status, WNOHANG)) > 0) {
+				for (k = 0; k < nworkers; k++) {
+					if (pids[k] == r) {
+						pids[k] = -1;
+						nalive--;
+						if (!WIFEXITED(status) || WEXITSTATUS(status) != 0)
+							failed = 1;
+						break;
+					}
+				}
+				continue;		/* Look for more finished workers */
+			}
+			usleep(50000);
+		}
+		if (verb && !failed && last != 100) {
+			printf("%c%2d%%",cr_char,100); fflush(stdout);
+		}
+	}
+	free(pids);
+
+	return failed;
+}
+
+/* Free the b2a_par_cx resources */
+static void b2a_par_free(b2a_par_cx *m) {
+	if (m->inv != NULL)
+		free(m->inv);
+	if (m->tnv != NULL)
+		free(m->tnv);
+	if (m->outv != NULL)
+		munmap(m->outv, (size_t)m->npts * m->ochan * sizeof(double) + sizeof(unsigned int));
+	m->inv = NULL; m->tnv = NULL; m->outv = NULL;
+}
+
+#endif /* B2A_PAR */
 
 /* --------------------------------------------------------- */
 
@@ -2941,13 +3149,54 @@ make_output_icc(
 				b2agres[i] = b2ares;
 
 			/* Create B2A cLut */
+			{
+			void (*clutf)(void *cbntx, double *out, double *in, int tn) = out_b2a_clut;
+			int svb = cx.verb;
+#ifdef B2A_PAR
+			b2a_par_cx mcx = { 0 };
+			int nworkers = b2a_par_workers();
+
+			if (nworkers > 1) {
+				/* Record pass: capture the exact fill sequence cheaply */
+				mcx.cx = &cx;
+				mcx.ichan = cx.ichan;
+				mcx.ochan = cx.ochan;
+				cx.par = (void *)&mcx;
+				cx.verb = 0;
+				if (wr_icco->create_lut_xforms(
+					wr_icco,
+#ifdef USE_LEASTSQUARES_APROX
+					ICM_CLUT_SET_APXLS |
+#endif
+					0, (void *)&cx, nsigs, sigs, 2,
+					b2ainres, b2agres, b2aoutres,
+					cx.pcsspace, devspace,
+					NULL, NULL, out_b2a_input,
+					NULL, NULL, out_b2a_clut_record,
+					NULL, NULL, out_b2a_output,
+					NULL, NULL
+				) != ICM_ERR_OK)
+					error("Setting 16 bit PCS->Device Lut failed: %d, %s",wr_icco->e.c,wr_icco->e.m);
+
+				/* Parallel compute of all recorded grid points */
+				if (b2a_par_compute(&mcx, nworkers, svb) == 0) {
+					clutf = out_b2a_clut_replay;	/* Replay results below */
+					cx.verb = 0;
+				} else {
+					warning("Parallel B2A computation failed - falling back to serial");
+					b2a_par_free(&mcx);
+					cx.verb = svb;
+				}
+			}
+#endif /* B2A_PAR */
+
 			if (wr_icco->create_lut_xforms(
 				wr_icco,
 #ifdef USE_LEASTSQUARES_APROX
-				ICM_CLUT_SET_APXLS | 
+				ICM_CLUT_SET_APXLS |
 #endif
 				0,					/* flags */
-				&cx,				/* Context */
+				(void *)&cx,		/* Context */
 				nsigs,				/* Number of tables */
 				sigs,				/* signatures and tag types for each table */
 				2,					/* Bytes per value of AToB or BToA CLUT, 1 or 2 */
@@ -2957,12 +3206,18 @@ make_output_icc(
 				NULL, NULL,			/* Use default input range */
 				out_b2a_input,		/* Input transform PCS->PCS' */
 				NULL, NULL,			/* Use default PCS range */
-				out_b2a_clut,		/* Lab' -> Device' transfer function */
+				clutf,				/* Lab' -> Device' transfer function */
 				NULL, NULL,			/* Use default Device' range */
 				out_b2a_output,	 	/* Output transfer function, Device'->Device */
 				NULL, NULL			/* Use default APXLS range */
 			) != ICM_ERR_OK)
 				error("Setting 16 bit PCS->Device Lut failed: %d, %s",wr_icco->e.c,wr_icco->e.m);
+			cx.verb = svb;
+#ifdef B2A_PAR
+			if (clutf == out_b2a_clut_replay)
+				b2a_par_free(&mcx);
+#endif
+			}
 			if (cx.verb) {
 				printf("\n");
 			}
