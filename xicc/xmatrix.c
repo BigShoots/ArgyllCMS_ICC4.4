@@ -59,6 +59,10 @@
 #undef DEBUG_SPEC 		/* [und] Debug some specific cases */
 #define G_DEB 0			/* [und] g_deb default value */ 
 
+#if (defined(NT) || defined(_WIN32)) && defined(_OPENMP)
+# include <omp.h>
+#endif
+
 /* Debug some specific cases (fwd_relpcs_outpcs, bwd_outpcs_relpcs) */
 #ifdef DEBUG_SPEC
 # undef DBS
@@ -506,6 +510,7 @@ typedef struct {
 	icmXYZNumber wp;		/* Assumed white point for Lab conversion */
 	cow *points;			/* List of test points as dev->Lab */
 	int nodp;				/* Number of data points */
+	double *point_errors;	/* Parallel terms, accumulated in source order */
 } mxopt;
 
 /* Per chanel function being optimised */
@@ -734,6 +739,24 @@ static double mxoptfunc(void *edata, double *v) {
 
 	if (g_deb) printf("\n");
 
+#if (defined(NT) || defined(_WIN32)) && defined(_OPENMP)
+	if (p->point_errors != NULL) {
+#pragma omp parallel for schedule(static)
+		for (i = 0; i < p->nodp; i++) {
+			double pxyz[3], plab[3];
+			mxmfunc(p, v, pxyz, p->points[i].p);
+			icmXYZ2Lab(&p->wp, plab, pxyz);
+#ifdef USE_CIE94_DE
+			p->point_errors[i] = p->points[i].w * icmCIE94sq(plab, p->points[i].v);
+#else
+			p->point_errors[i] = p->points[i].w * icmLabDEsq(plab, p->points[i].v);
+#endif
+		}
+		/* Keep the serial summation order so worker count cannot perturb the fit. */
+		for (i = 0; i < p->nodp; i++)
+			rv += p->point_errors[i];
+	} else
+#endif
 	for (i = 0; i < p->nodp; i++) {
 
 		/* Apply our function */
@@ -879,6 +902,34 @@ double scale		/* Scale device values */
 		os->verb = 0;
 	os->points = points;
 	os->nodp   = nodp;
+	os->point_errors = NULL;
+#if (defined(NT) || defined(_WIN32)) && defined(_OPENMP)
+	{
+		const char *worker_text = getenv("ARGYLL_COLPROF_WORKERS");
+		int processors = omp_get_num_procs();
+		int workers = worker_text != NULL ? atoi(worker_text) : processors;
+		if (worker_text == NULL) {
+			if (workers > 4)
+				workers -= 2;
+			else if (workers > 1)
+				workers -= 1;
+			if (workers > 8)
+				workers = 8;
+		}
+		if (workers > processors)
+			workers = processors;
+		if (workers > nodp)
+			workers = nodp;
+		/* Small matrix-only charts finish faster without parallel startup. */
+		if (workers > 1 && nodp >= 256) {
+			os->point_errors = (double *)malloc(sizeof(double) * nodp);
+			if (os->point_errors != NULL) {
+				omp_set_dynamic(0);
+				omp_set_num_threads(workers);
+			}
+		}
+	}
+#endif
 	os->isShTRC = 0;
 	os->shape0gam = shape0gam;
 	os->smooth = smooth;
@@ -1227,6 +1278,8 @@ double scale		/* Scale device values */
 
 	/* Free the coordinate lists */
 	free(points);
+	free(os->point_errors);
+	os->point_errors = NULL;
 
 	return 0;
 }

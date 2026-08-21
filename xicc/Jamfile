@@ -4,6 +4,10 @@ PREF_CCFLAGS	    += $(CCDEBUGFLAG) ;		# Debugging flags
 #PREF_CCFLAGS	+= $(CCHEAPDEBUG) ;		# Heap Debugging flags
 PREF_LINKFLAGS	+= $(LINKDEBUGFLAG) ;	# Link debugging flags
 
+if $(NT) {
+	PREF_CCFLAGS += -fopenmp ;
+}
+
 #Products
 Libraries = libxicc libxcolorants libxutils ;
 Executables = fakeCMY iccgamut mpplu revfix tiffgamut xicclu extracticc extractttag specplot ;
@@ -238,4 +242,3 @@ if $(BUILD_JUNK) {
 		Main chebytest : chebytest.c ;
 	}
 }
-

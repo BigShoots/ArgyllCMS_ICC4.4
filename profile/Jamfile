@@ -4,6 +4,10 @@ PREF_CCFLAGS	= $(CCDEBUGFLAG) ;		# Debugging flags
 #PREF_CCFLAGS	= $(CCHEAPDEBUG) ;		# Heap Debugging flags
 PREF_LINKFLAGS	= $(LINKDEBUGFLAG) ;
 
+if $(NT) {
+	PREF_LINKFLAGS += -fopenmp ;
+}
+
 #Products
 Libraries = libprof ;
 Executables = cb2ti3 kodak2ti3 txt2ti3 cxf2ti3 ls2ti3 splitti3 mppcheck mppprof
@@ -151,7 +155,6 @@ if [ GLOB [ NormPaths . ] : nmod7_2.c ]  {
 if [ GLOB [ NormPaths . ] : nmod8.c ]  {
 	Main nmod8 : nmod8.c ;
 }
-
 
 
 
